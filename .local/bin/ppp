@@ -1,0 +1,302 @@
+#!/usr/bin/env python3
+
+from fileinput import input
+from collections import namedtuple
+from collections import defaultdict
+from datetime import datetime
+from dateutil.relativedelta import relativedelta
+from dateutil.parser import parse as parse_date
+from argparse import ArgumentParser
+from fnmatch import fnmatch
+from bisect import insort
+from re import compile
+from operator import attrgetter
+from anytree import Node
+from anytree import RenderTree
+# Logging
+import logging as log
+#log.basicConfig(level=log.DEBUG)
+
+# DEFAULTS
+DEFAULT_LOGFILE = "/var/log/pacman.log"
+DEFAULT_GRAPH_FORMAT = "{status}\nVersion: {version}\nDate: {date}"
+DEFAULT_TEXT_FORMAT  = "{package:<25} | {status:^15} | {date:^20} | {version:^20} |"
+# Sorting rank
+sorting_ranks = {
+        "installed" : 0,
+        "reinstalled" : 1,
+        "upgraded"  : 2,
+        "removed"   : 3
+        }
+
+# Color codes
+color_pallet = {
+        "green"      :   "\x1b[6;30;42m",
+        "red"        :   "\x1b[0;30;41m",
+        "yellow"     :   "\x1b[0;30;43m",
+        "white"      :   "\x1b[0;30;47m",
+        }
+
+# Status to color
+status_to_color = {
+        "installed"     :   "green",
+        "reinstalled"   :   "green",
+        "upgraded"      :   "yellow",
+        "removed"       :   "red"
+        }
+
+# Entry- Class
+Entry = namedtuple("Entry", "date type packagestatus packagename packageversion")
+
+# Regex to parse Entry- Class
+re_entry = compile(r"\[(?P<date>[^\]]+)\] \[(?P<type>[^\]]+)\] (?P<packagestatus>(installed|reinstalled|removed|upgraded)) (?P<packagename>([^\(]+)) \((?P<packageversion>(.*?))\)")
+
+class Base():
+    """
+    Makes arguments accessable via the dot
+    """
+    def __init__(self, **options):
+        self.__dict__.update(**options)
+
+    def __repr__(self):
+        return "{classname}({arguments})".format(
+                classname=self.__class__.__name__,
+                arguments=", ".join(["{}={}".format(k,v) for k, v in self.__dict__.items() if not k.startswith("__")]))
+
+class Options(Base):
+    """
+    Options Class
+    """
+    def __init__(self, **options):
+        # Validate the options
+        log.debug("Validate the options")
+
+        # Check the date
+        opt_date = options["date"]
+        if opt_date:
+            # Try to parse the date
+            d = None
+            log.debug("Try to parse the given date")
+            try:
+                d = parse_date(opt_date)
+            except ValueError:
+                log.debug("Could not parse the given date")
+                # Check if its in relative timeformat
+                # Parse the given text
+                re_relative_dateformat = compile(r"(\d+)+(Y|M|d|h|m)?")
+                reltime = dict()
+                # Iterate over each key-value pair and update the dict
+                for m in re_relative_dateformat.finditer(opt_date):
+                    num, num_type = int(m.groups()[0]), m.groups()[1]
+                    if num_type == "Y":
+                        reltime["years"] = num
+                    elif num_type == "M":
+                        reltime["months"] = num
+                    elif num_type == "d":
+                        reltime["days"] = num
+                    elif num_type == "h":
+                        reltime["hours"] = num
+                    elif num_type == "m":
+                        reltime["minutes"] = num
+
+                if len(reltime):
+                    d = datetime.today()
+                    d -= relativedelta(**reltime)
+                    log.debug("Computed the following date:", d)
+                else:
+                    log.debug("The given date was invalid.")
+
+            options["date"] = d
+
+
+        super().__init__(**options)
+
+class Entry(Base):
+    """
+    Entry Class
+    """
+
+    def __eq__(self, other):
+        return all((self.date == other.date) and (self.packagename == other.packagename) and (self.packagestatus == other.packagestatus) and (self.packageversion == other.packageversion))
+
+    def __lt__(self, other):
+        return (self.date, sorting_ranks[str.lower(self.packagestatus)]) < (other.date, sorting_ranks[str.lower(other.packagestatus)])
+
+def colorize(text, color):
+    """
+    Helperfunction which colorizes the output
+    """
+    return "{}{}{}".format(color_pallet[color], text, "\x1b[0m")
+
+def parse_files(options):
+    """
+    This is the main routine
+    """
+    log.debug("Found {} files.".format(len(options.files)))
+    log.debug("Reading{} from stdin.".format(" not" if not options.stdin else ""))
+    # Variables
+    # Get local instance of the compiled regex
+    r = re_entry
+    # Main dict
+    entries = defaultdict(list)
+    # Iterate over the given files. If no files are given, use the default file. If stdin switch is on, use stdin.
+    with input(options.files if not options.stdin else None) as f:
+        for line in f:
+            # Parse the line
+            match = r.search(line)
+
+            if match:
+                entry = Entry(**match.groupdict())
+                # convert date
+                entry.date = parse_date(entry.date)
+                # append to the package list
+                # use insort_right
+                insort(entries[entry.packagename], entry)
+
+        ##############################################
+        ##############################################
+        ############### Apply filters ################
+        ##############################################
+        ##############################################
+
+        get_package_status = attrgetter("packagestatus")
+        # Contains all keys which passed the filter
+        # These are the items to show to the user
+        items_to_display = set()
+        for k,v in entries.items():
+            # Check if the package name is wanted by the user
+            if options.packages:
+                for package in options.packages:
+                    if fnmatch(k, package):
+                        # Found package; rule passed
+                        items_to_display.add(k)
+                        break
+                else:
+                    try:
+                        items_to_display.remove(k)
+                    except KeyError:
+                        pass
+                    continue
+
+            # Check the date filter
+            if options.date:
+                # Find the first date in the list which passes the test
+                for i, entry in enumerate(v):
+                    if entry.date >= options.date:
+                        # Found one. Cut out all the dates before
+                        entries[k] = v[i:]
+                        items_to_display.add(k)
+                        break
+                else:
+                    try:
+                        items_to_display.remove(k)
+                    except KeyError:
+                        pass
+                    continue
+
+            # Check the still installed are removed filter
+            if options.installed or options.removed:
+                is_installed = v[-1].packagestatus != "removed"
+
+                if is_installed and options.installed:
+                    items_to_display.add(k)
+                elif not is_installed and options.removed:
+                    items_to_display.add(k)
+                else:
+                    # User only wants still installed packages, so remove it from list and check next item
+                    try:
+                        items_to_display.remove(k)
+                    except KeyError:
+                        pass
+                    continue
+            # Check the upgraded filter
+            if options.upgraded:
+                is_upgraded = any(map(lambda x: get_package_status(x) == "upgraded", v))
+                if is_upgraded:
+                    items_to_display.add(k)
+                else:
+                    # User only want already upgraded packages, so remove it
+                    try:
+                        items_to_display.remove(k)
+                    except KeyError:
+                        pass
+                    continue
+
+            # Show the item
+            items_to_display.add(k)
+        ##############################################
+        ##############################################
+        ############### Display results ##############
+        ##############################################
+        ##############################################
+
+        if options.graph:
+            for k, v in entries.items():
+                if k not in items_to_display: continue
+                package_nodes = list()
+                package_nodes.append(Node(k) if not options.colors else Node(colorize(k, "white")))
+
+                for entry in v:
+                    status = entry.packagestatus
+                    if options.colors:
+                        c = status_to_color[entry.packagestatus]
+                        status = colorize(status,c)
+
+                    text_to_display = DEFAULT_GRAPH_FORMAT.format(status=status, version=entry.packageversion, date=entry.date if not options.dateformat else entry.date.strftime(options.dateformat))
+
+                    package_nodes.append(Node(text_to_display, parent=package_nodes[-1]))
+
+                try:
+                    for pre, fill, node in RenderTree(package_nodes[0]):
+                        print("{pre}{text}".format(pre=pre, text=node.name.replace("\n", "\n{}".format(fill))))
+                except IOError:
+                    # stdout is closed
+                    return 1 # Exit error
+
+        else:
+            # Display in textform
+            # Headers
+            print(DEFAULT_TEXT_FORMAT.format(package="Package", status="Status", date="Date", version="Version"))
+            for k, v in entries.items():
+                if k not in items_to_display: continue
+                try:
+                    for i, entry in enumerate(v):
+                        # First entry; print seperator
+                        print(DEFAULT_TEXT_FORMAT.format(
+                            package=entry.packagename if i == 0 else "",
+                            status=entry.packagestatus,
+                            date=str(entry.date) if not options.dateformat else entry.date.strftime(options.dateformat),
+                            version=entry.packageversion))
+                except IOError:
+                    # stdout is closed
+                    return 1 # Exit error
+
+    return 0 # Success
+
+def main():
+    log.debug("Application started")
+
+    # Parse the arguments
+    log.debug("Parse arguments")
+    parser = ArgumentParser()
+
+    parser.add_argument(dest="files", nargs="*", metavar="filename", default=[DEFAULT_LOGFILE], help="The logfiles to check (default: /var/log/pacman.log)")
+    parser.add_argument("-d", "--date", dest="date", action="store", help="Start date which should be used. You can also say '-d 1w' to see the changes since the last week (possible options: m=minutes, h=hours, d=day, w=week, M=months, Y=years) (default: first date out of all sorted dates)")
+    parser.add_argument("-i", "--installed", dest="installed", action="store_true", help="Only show the entries for packages which are still installed")
+    parser.add_argument("-r", "--removed", dest="removed", action="store_true", help="Only show the entries for packages which are already removed")
+    parser.add_argument("-u", "--upgraded", dest="upgraded", action="store_true", help="Only show the entries for packages which got an upgrade")
+    parser.add_argument("-p", "--package", dest="packages", metavar="package-name", nargs="+", help="Filter the packages by the given name (shell wildcards are allowed)")
+    parser.add_argument("--date-format", dest="dateformat", action="store",  help="Use the given dateformat (checkout strftime)")
+    parser.add_argument("-g", "--graph", dest="graph", action="store_true", help="Display a beautiful graph")
+    parser.add_argument("--colors", dest="colors", action="store_true", help="Use colors")
+    parser.add_argument("--stdin", dest="stdin", action="store_true", help="Use stdin (If you want to use the pipe)")
+    given_arguments = parser.parse_args()
+
+    # Convert the arguments to an options object
+    log.debug("Convert the arguments to object file")
+    options = Options(**given_arguments.__dict__)
+
+    return parse_files(options)
+
+if __name__ == "__main__":
+    raise SystemExit(main())

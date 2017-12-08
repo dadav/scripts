@@ -1,0 +1,28 @@
+#!/bin/bash
+
+echo "Uploading $1"
+API_KEY="4af50ca337096c3788d5275c45b362ebf1768fd178362986d6d34f216af4818f"
+
+result=$(curl -F "file=@$1" -F apikey="$API_KEY" https://www.virustotal.com/vtapi/v2/file/scan 2>/dev/null)
+scan_id=$(echo $result | python -c 'import sys, json; print(json.load(sys.stdin)["scan_id"])')
+
+if [ -z $scan_id ]; then
+    echo "Upload failed"
+    exit 1
+fi
+
+echo -n "Downloading report"
+
+while [ -z $positives ]; do
+
+report=$(curl --request POST --url 'https://www.virustotal.com/vtapi/v2/file/report' \
+    -d apikey="$API_KEY" \
+    -d "resource=$scan_id" 2>/dev/null)
+
+positives=$(echo $report | python -c 'import sys,json; y = json.load(sys.stdin); print(y["positives"]); [ print(provider, "says", y["scans"][provider]["result"]) for provider in y["scans"] if y["scans"][provider]["detected"]] if y["positives"] > 0 else None' 2>/dev/null)
+
+printf "."
+sleep 2
+done
+printf "\n"
+echo "Found $positives"
