@@ -1,0 +1,6 @@
+#!/bin/bash
+
+IMAGE="/tmp/lock.png"
+scrot "$IMAGE"
+convert "$IMAGE" -blur 2x8 "$IMAGE"
+i3lock -i "$IMAGE" --show-failed-attempts
