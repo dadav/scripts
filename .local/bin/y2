@@ -1,7 +1,6 @@
 #!/bin/bash
 
 set -euo pipefail
-set -x
 [[ $# -lt 1 ]] && {
   echo Fail: must give either music or video as argument
   exit 1
@@ -16,12 +15,12 @@ mode="$1"
 shift
 case $mode in
   music)
-    YT_OPTS='--audio-quality 0 --audio-format mp3 --extract-audio --metadata-from-title "%(artist)s - %(title)s"'
-    SAVEDIR=$AUDIO_SAVEDIR
+    YT_OPTS='--audio-quality 0 --audio-format mp3 --extract-audio '
+    SAVEDIR="$AUDIO_SAVEDIR"
     ;;
   video)
-    YT_OPTS='--metadata-from-title "%(title)s"'
-    SAVEDIR=$VIDEO_SAVEDIR
+    YT_OPTS=''
+    SAVEDIR="$VIDEO_SAVEDIR"
     ;;
   *)
     echo "Fail. invalid mode $mode. music or video"
@@ -52,8 +51,8 @@ cd "$SAVEDIR"
 n info "Starting youtube-dl download for $url"
 title=$(youtube-dl --get-title "$url")
 n info "Downloading $title"
-if youtube-dl $YT_OPTS --no-mtime --add-metadata --no-progress --restrict-filenames "$url"; then
-  n error "Download of $title failed"
-  exit 1
+if youtube-dl $YT_OPTS -o '%(title)s.%(ext)s' --no-mtime --add-metadata --no-progress --restrict-filenames --metadata-from-title '%(artist)s - %(title)s' "$url"; then
+  n info "Download of $title successful"
+  exit 0
 fi
-n info "Download of $title successful"
+n error "Download of $title failed"
