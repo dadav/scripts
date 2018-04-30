@@ -1,0 +1,59 @@
+#!/bin/bash
+
+set -euo pipefail
+set -x
+[[ $# -lt 1 ]] && {
+  echo Fail: must give either music or video as argument
+  exit 1
+}
+
+export AUDIO_SAVEDIR="$HOME/music"
+export VIDEO_SAVEDIR="$HOME/videos"
+mkdir -p "$AUDIO_SAVEDIR"
+mkdir -p "$VIDEO_SAVEDIR"
+
+mode="$1"
+shift
+case $mode in
+  music)
+    YT_OPTS='--audio-quality 0 --audio-format mp3 --extract-audio --metadata-from-title "%(artist)s - %(title)s"'
+    SAVEDIR=$AUDIO_SAVEDIR
+    ;;
+  video)
+    YT_OPTS='--metadata-from-title "%(title)s"'
+    SAVEDIR=$VIDEO_SAVEDIR
+    ;;
+  *)
+    echo "Fail. invalid mode $mode. music or video"
+    exit 1
+esac
+
+n() {
+  case $1 in
+     error)
+        opt='-u critical'
+        ;;
+     *)
+        opt='-u low'
+  esac
+
+  shift
+
+  notify-send $opt -a y2 -t 3000 "$*"
+}
+
+if [[ $# -ne 0 ]]; then
+  url="$*"
+else
+  url="$(xclip -o)"
+fi
+
+cd "$SAVEDIR"
+n info "Starting youtube-dl download for $url"
+title=$(youtube-dl --get-title "$url")
+n info "Downloading $title"
+if youtube-dl $YT_OPTS --no-mtime --add-metadata --no-progress --restrict-filenames "$url"; then
+  n error "Download of $title failed"
+  exit 1
+fi
+n info "Download of $title successful"
