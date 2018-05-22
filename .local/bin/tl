@@ -1,0 +1,21 @@
+#!/bin/bash
+
+# Toggle xautolock
+# Usecase: Watching youtube and dont want xautolock to interrupt
+
+TIMEOUT=5000
+PID=$(pgrep xautolock)
+
+function status(){
+  notify-send -t "$TIMEOUT" "$1"
+}
+
+[[ -z "$PID" ]] && status "Locker läuft nicht."
+
+if [[ "$(ps -o state= -p "$PID")" = T ]]; then
+  kill -CONT "$PID"
+  status "Locker läuft."
+else
+  kill -STOP "$PID"
+  status "Locker gestoppt."
+fi
