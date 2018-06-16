@@ -13,6 +13,11 @@ mkdir -p "$VIDEO_SAVEDIR"
 
 mode="$1"
 shift
+
+if [[ "$mode" == "rofi" ]]; then
+    mode=$(echo -e "music\\nvideo\\nview\\n" | rofi -location 1 -dmenu -p "download ")
+fi
+
 case $mode in
   music)
     YT_OPTS='--audio-quality 0 --audio-format mp3 --extract-audio '
@@ -22,14 +27,7 @@ case $mode in
     YT_OPTS=''
     SAVEDIR="$VIDEO_SAVEDIR"
     ;;
-  rofi)
-    menu=$(echo -e "music\\nvideo\\nview\\n" | rofi -location 1 -dmenu -p "download ")
-
-    if [[ $menu == "view" ]]; then
-        mpv "$(xclip -o)"
-    else
-        $0 "$menu"
-    fi
+  view)
     ;;
   *)
     echo "Fail. invalid mode $mode. music or video"
@@ -54,6 +52,16 @@ if [[ $# -ne 0 ]]; then
   url="$*"
 else
   url="$(xclip -o)"
+fi
+
+if [[ $mode == "view" ]]; then
+  n info "Start viewing for $url"
+  if mpv --no-terminal "$url"; then
+    exit 0
+  else
+    n error "Viewing of $url failed"
+    exit 1
+  fi
 fi
 
 cd "$SAVEDIR"
