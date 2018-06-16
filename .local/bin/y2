@@ -22,6 +22,15 @@ case $mode in
     YT_OPTS=''
     SAVEDIR="$VIDEO_SAVEDIR"
     ;;
+  rofi)
+    menu=$(echo -e "music\\nvideo\\nview\\n" | rofi -location 1 -dmenu -p "download ")
+
+    if [[ $menu == "view" ]]; then
+        mpv "$(xclip -o)"
+    else
+        $0 "$menu"
+    fi
+    ;;
   *)
     echo "Fail. invalid mode $mode. music or video"
     exit 1

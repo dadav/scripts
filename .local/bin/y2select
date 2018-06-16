@@ -1,9 +1,0 @@
-#!/bin/bash
-
-menu=$(echo -e "music\nvideo\nview\n" | rofi -location 1 -dmenu -p "download ")
-
-if [[ $menu == "view" ]]; then
-    mpv "$(xclip -o)"
-else
-    y2 "$menu"
-fi
