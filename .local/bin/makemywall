@@ -34,6 +34,7 @@ $0 [-vs] width height [picture [picture [...]]]
 $0 -h
 
 -h : displays this help message
+-x : use xrandr to get screen resolution
 -s : use a "safer" and slower method to get the background color
 -v : be verbose (set -x)
 
@@ -49,10 +50,11 @@ die() {
   echo "$1" && exit "${2:-1}"
 }
 
-while getopts ":hvs" _opt; do
+while getopts ":hvsx" _opt; do
   case "$_opt" in
     h) usage       ;;
     s) _slow=1     ;;
+    x) _xrandr=1   ;;
     v) set -x      ;;
     *) usage 1 >&2 ;;
   esac
@@ -76,12 +78,19 @@ fi
 
 # We require width & height
 # TODO: maybe auto-detect? seems tricky with dual screen
-if [ $# -lt 2 ]; then
+if [ $# -lt 2 ] && [ -z "$_xrandr" ]; then
+  echo $_xrandr
   usage 1 >&2
 fi
-width="$1"
-height="$2"
-shift 2
+
+if [ -n "$_xrandr" ]; then
+  width="$(xrandr --current | grep -F '*' | uniq | awk '{ print $1 }' | cut -d"x" -f 1)"
+  height="$(xrandr --current | grep -F '*' | uniq | awk '{ print $1 }' | cut -d"x" -f 2)"
+else
+  width="$1"
+  height="$2"
+  shift 2
+fi
 
 { if [ -z "$1" ]; then
   # No arguments, we read stdin
