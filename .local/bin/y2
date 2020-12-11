@@ -6,8 +6,9 @@ set -euo pipefail
   exit 1
 }
 
-export AUDIO_SAVEDIR="$HOME/library/audio/music"
-export VIDEO_SAVEDIR="$HOME/library/videos"
+AUDIO_SAVEDIR="$HOME/library/audio/music"
+VIDEO_SAVEDIR="$HOME/library/videos"
+
 mkdir -p "$AUDIO_SAVEDIR"
 mkdir -p "$VIDEO_SAVEDIR"
 
