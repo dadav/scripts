@@ -63,7 +63,7 @@ fi
 PLZ="$1"
 URL="https://covid-plz-check.de/?plz=$PLZ"
 
-DATA="$(curl -s "$URL" \
+DATA="$(curl -s --retry-all-errors --retry 3 --retry-delay 5 "$URL" \
   | pup -c 'table tbody json{}' \
   | jq -r '.[0].children[] .children | .[1].text')"
 
