@@ -1,0 +1,75 @@
+#!/bin/bash
+
+set -eu
+
+function usage() {
+  cat <<EOF
+usage:
+  $0 [options] plz
+
+  options:
+    -t print time of the data
+    -s print cases per 100k ppl. over 7 days
+    -i print total cases
+    -d print total deaths
+    -e print number of ppl.
+    -a print total cases per 100k ppl.
+    -h print usage
+EOF
+}
+
+declare -a print_options
+
+while getopts "jtsideah" o; do
+    case "${o}" in
+      t)
+        print_options+=(0)
+        ;;
+      s)
+        print_options+=(1)
+        ;;
+      i)
+        print_options+=(2)
+        ;;
+      d)
+        print_options+=(3)
+        ;;
+      e)
+        print_options+=(4)
+        ;;
+      a)
+        print_options+=(5)
+        ;;
+      j)
+        JOIN=1
+        ;;
+      h)
+        usage
+        exit 0
+        ;;
+      *)
+        usage
+        exit 1
+        ;;
+    esac
+done
+shift $((OPTIND-1))
+
+if [[ "$#" -ne 1 ]]; then
+  usage
+  exit 1
+fi
+
+PLZ="$1"
+URL="https://covid-plz-check.de/?plz=$PLZ"
+
+DATA="$(curl -s "$URL" \
+  | pup -c 'table tbody json{}' \
+  | jq -r '.[0].children[] .children | .[1].text')"
+
+IFS=$'\n' readarray -t VALUES <<<"$DATA"
+
+for o in "${print_options[@]}"; do
+  echo ${JOIN+-n} "${VALUES[$o]}${JOIN+ }"
+done
+

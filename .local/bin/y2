@@ -57,7 +57,7 @@ fi
 
 if [[ $mode == "view" ]]; then
   n info "Start viewing for $url"
-  if mpv --no-terminal "$url"; then
+  if mpv --force-window --no-terminal "$url"; then
     exit 0
   else
     n error "Viewing of $url failed"
