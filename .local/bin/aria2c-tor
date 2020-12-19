@@ -20,6 +20,7 @@ privoxy --no-daemon "$PRIVOXY_CONF" &>/dev/null &
 function cleanup() {
   # shellcheck disable=SC2046
   kill $(jobs -p) &>/dev/null
+  rm "$PRIVOXY_CONF"
 }
 
 trap cleanup EXIT INT
