@@ -16,7 +16,7 @@ mode="$1"
 shift
 
 if [[ "$mode" == "rofi" ]]; then
-    mode=$(echo -e "music\\nvideo\\nview\\n" | rofi -location 1 -dmenu -p "download ")
+  mode=$(echo -e "music\\nvideo\\nview\\n" | rofi -location 1 -dmenu -p "download ")
 fi
 
 case $mode in
