@@ -2,9 +2,20 @@
 
 set -eu
 
+PRIVOXY_CONF="/tmp/privoxy.$$"
+PRIVOXY_PORT="$(((RANDOM % 10000) + 8500))"
+
+echo "listen-address  127.0.0.1:$PRIVOXY_PORT" >> "$PRIVOXY_CONF"
+echo "forward-socks5 / 127.0.0.1:9150 ." >> "$PRIVOXY_CONF"
+
+# start x server with virtual screen
 Xvnc -localhost :99 &>/dev/null &
+
+# start tor
 DISPLAY=":99" torbrowser-launcher &>/dev/null &
-privoxy --no-daemon /etc/privoxy/config &>/dev/null &
+
+# open port 8118 and forword to 9150 (tor)
+privoxy --no-daemon "$PRIVOXY_CONF" &>/dev/null &
 
 function cleanup() {
   # shellcheck disable=SC2046
@@ -15,4 +26,4 @@ trap cleanup EXIT INT
 
 sleep 3
 # shellcheck disable=SC2048,SC2086
-aria2c --all-proxy=localhost:8118 $*
+aria2c --all-proxy=localhost:"$PRIVOXY_PORT" $*
