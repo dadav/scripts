@@ -8,10 +8,10 @@ fi
 value="$1"
 
 if [[ "$value" -eq 1 ]]; then
-  notify-send -u normal "disabling ipv6"
+  notify-send -u normal "enabling ipv6"
   value=0
 elif [[ "$value" -eq 0 ]];then
-  notify-send -u normal "enabling ipv6"
+  notify-send -u normal "disabling ipv6"
   value=1
 else
   echo "give me 1 or 0"
