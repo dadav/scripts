@@ -1,0 +1,19 @@
+#!/bin/bash
+
+if [[ "$#" -ne 1 ]]; then
+  echo "give me 1 or 0"
+  exit 1
+fi
+
+value="$1"
+
+if [[ "$value" -eq 1 ]]; then
+  notify-send -u normal "enabling ipv6"
+elif [[ "$value" -eq 0 ]];then
+  notify-send -u normal "disabling ipv6"
+else
+  echo "give me 1 or 0"
+  exit 1
+fi
+
+echo "$value" | sudo tee /proc/sys/net/ipv6/conf/*/disable_ipv6
