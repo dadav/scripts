@@ -1,0 +1,4 @@
+#!/bin/bash
+# fetch qrcode from screen and copy to clipboard
+
+import -silent -window root bmp:- | zbarimg - | pee "xclip -i" "xargs notify-send Copied"
