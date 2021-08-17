@@ -1,0 +1,49 @@
+#!/bin/bash
+
+KEY_LOCATION="$HOME/.apk.keystore"
+KEY_PASS="foobar"
+
+cmd="$1"
+shift
+
+if [[ $cmd == genkey ]]; then
+  if [[ ! -f $KEY_LOCATION ]]; then
+    echo "Generating key: $KEY_LOCATION"
+    chronic keytool -genkey \
+      -noprompt \
+      -alias alias1 \
+      -dname "CN=foo.bar, OU=FOO, O=FOO, L=FOO, S=BAR, C=US" \
+      -keystore "$KEY_LOCATION" \
+      -storepass "$KEY_PASS" \
+      -keypass "$KEY_PASS" \
+      -keysize 2048 \
+      -validity 10000 \
+      -keyalg RSA
+    exit $?
+  else
+    echo "Key already exists: $KEY_LOCATION"
+    exit 1
+  fi
+fi
+
+if [[ $cmd == align ]]; then
+  rc=0
+  for file in "$@"; do
+    echo "Aligning: $file"
+    if ! chronic zipalign -v 4 "$file" "${file%.apk}-alinged.apk"; then
+      rc=1
+    fi
+  done
+  exit $rc
+fi
+
+if [[ $cmd == sign ]]; then
+  rc=0
+  for file in "$@"; do
+    echo "Signing: $file"
+    if ! chronic apksigner sign --ks "$KEY_LOCATION" --ks-pass "pass:$KEY_PASS" --key-pass "pass:$KEY_PASS" "$file"; then
+      rc=1
+    fi
+  done
+  exit $rc
+fi
